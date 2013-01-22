@@ -50,8 +50,9 @@ class XMPPManager(LoggingEnabledObject):
     def cleanup(self):
         self.xmpp.disconnect(wait=False)
 
-    def on_start(self, resource_name):
-        self.info("resource name: " + resource_name)
+    def on_start(self, jid):
+        self.from_user = jid
+        self.info("my JID: " + jid)
 
     def on_message(self, data):
         try:
@@ -74,24 +75,26 @@ class XMPPManager(LoggingEnabledObject):
             pass
         else:
             stream_id = reply['id']
-            stream = self.streams[stream_id]
-            if reply['event'] == 'establishing':
-                pass
-            elif reply['event'] == 'error':
-                stream.on_error(reply['errno'])
-            elif reply['event'] == 'closed':
-                stream.on_close()
-            elif reply['event'] == 'data':
-                stream.on_streaming_data(bytes(reply['data']))
-            elif reply['event'] == 'connected':
-                stream.local_addr = tuple(reply['address'])
-                stream.on_connect()
-            else:
-                self.warning("unknown event: %s" % reply['event'])
+            stream = self.streams.get(stream_id, None)
+            if stream:
+                if reply['event'] == 'establishing':
+                    pass
+                elif reply['event'] == 'error':
+                    stream.on_error(reply['errno'])
+                elif reply['event'] == 'closed':
+                    stream.on_close()
+                elif reply['event'] == 'data':
+                    stream.on_streaming_data(bytes(reply['data']))
+                elif reply['event'] == 'connected':
+                    stream.local_addr = tuple(reply['address'])
+                    stream.on_connect()
+                else:
+                    self.warning("unknown event: %s" % reply['event'])
 
     def send_request(self, req):
         serialized = json.dumps(req)
-        self.xmpp.send_message(mbody=serialized, mto=self.relay_user)
+        self.xmpp.send_message(mbody=serialized, mto=self.relay_user,
+            mtype='chat', mfrom=self.from_user)
 
     def add_stream(self, stream):
         self.streams[stream.stream_id] = stream
@@ -105,7 +108,6 @@ class XMPPUpstream(Upstream):
         self.manager.add_stream(self)
 
     def do_connect(self):
-        self.manager.add_stream(self)
         self.manager.send_request({
             'id':           self.stream_id,
             'action':       'connect',

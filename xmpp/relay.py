@@ -62,14 +62,18 @@ class XMPPRelaySession(object):
             return
         stream_id = str(req.get("id"))
         data = bytes(req.get("data"))
-        self.streams[stream_id].send(data)
+        stream = self.streams.get(stream_id, None)
+        if stream:
+            stream.send(data)
 
     def do_close(self, req, msg):
         if any([key not in req for key in ["id"]]):
             logging.warning("request missing key: %s" % (str(req)))
             return
         stream_id = str(req.get("id"))
-        self.streams[stream_id].close()
+        stream = self.streams.get(stream_id, None)
+        if stream:
+            stream.close()
 
     def on_upstream_connect(self, stream):
         addr_type = stream.local_address_type()
@@ -116,9 +120,9 @@ class XMPPSessionManager(object):
     def send_message(self, *args, **kwargs):
         self.xmpp.send_message(*args, **kwargs)
 
-    def on_start(self, resource_name):
-        self.resource_name = resource_name
-        logging.info("connected with resource name: %s" % self.resource_name)
+    def on_start(self, jid):
+        self.jid = jid
+        logging.info("connected with JID: %s" % self.jid)
 
     def on_message(self, data):
         try:

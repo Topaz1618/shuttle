@@ -35,7 +35,7 @@ class XMPPProxyBot(ClientXMPP):
     def on_start(self, event):
         self.send_presence()
         self.get_roster()
-        urllib2.urlopen(self.start_callback, self.boundjid.resource)
+        urllib2.urlopen(self.start_callback, self.boundjid.full)
 
     def on_message(self, msg):
         if msg['type'] in ['chat', 'normal']:
