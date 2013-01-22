@@ -1,15 +1,20 @@
+#!/usr/bin/env python
+
+# ugly fix for loading objectlog
+import sys
+import os
+sys.path.insert(0, os.path.abspath('.'))
+
 import tornado.ioloop
 import tornado.iostream
 import tornado.options
 import tornado.process
 import tornado.netutil
-import sys
 import socket
 import errno
 import functools
 import struct
-import os
-from upstreams import LoggingEnabledObject, LocalUpstream
+from objectlog import LoggingEnabledObject
 
 
 class SOCKSConnection(LoggingEnabledObject):
@@ -44,10 +49,13 @@ class SOCKSConnection(LoggingEnabledObject):
             errno.ENETUNREACH:      0x03,
         }
 
-    def __init__(self, conn, addr, upstream_cls=LocalUpstream):
+    def __init__(self, conn, addr, upstream_cls=None, manager=None):
         super(SOCKSConnection, self).__init__("Proxy(%s:%d)  ", addr)
         self.conn = conn
         self.addr = addr
+        self.manager = manager
+        if upstream_cls is None:
+            raise TypeError("must specify an upstrea class!")
         self.upstream_cls = upstream_cls
         self.setup_logging()
         self.on_connected()
@@ -166,7 +174,7 @@ class SOCKSConnection(LoggingEnabledObject):
         self.upstream = self.upstream_cls(self.destination,
             socket.AF_INET6 if self.atyp == 0x04 else socket.AF_INET,
             self.on_upstream_connect, self.on_upstream_error,
-            self.on_upstream_data, self.on_upstream_close)
+            self.on_upstream_data, self.on_upstream_close, manager=manager)
 
     def on_upstream_connect(self):
         addr_type = self.upstream.local_address_type()
@@ -196,7 +204,7 @@ class SOCKSConnection(LoggingEnabledObject):
 
     def clean_upstream(self):
         if getattr(self, "upstream", None):
-            self.upstream.close(no_more_callbacks=True)
+            self.upstream.close()
             self.upstream = None
 
     def on_socks_data(self, data, finished=False):
@@ -225,38 +233,66 @@ class SOCKSConnection(LoggingEnabledObject):
 
 
 class SOCKSServer(tornado.netutil.TCPServer):
-    def __init__(self):
+    def __init__(self, upstream_cls, manager):
         super(SOCKSServer, self).__init__()
         self.connections = []
+        self.upstream_cls = upstream_cls
+        self.manager = manager
 
     def handle_stream(self, stream, address):
-        conn = SOCKSConnection(stream, address)
+        conn = SOCKSConnection(stream, address, upstream_cls=upstream_cls,
+            manager=self.manager)
         self.on_new_connection(conn)
 
     def on_new_connection(self, conn):
         self.connections.append(conn)
 
 
-def main(num_processes, addr, port):
-    server = SOCKSServer()
+def main(num_processes, addr, port, upstream_cls, manager):
+    server = SOCKSServer(upstream_cls, manager)
     server.bind(port, address=addr, backlog=1024)
     try:
         server.start(num_processes)
         tornado.ioloop.IOLoop.instance().start()
     except KeyboardInterrupt:
         tornado.ioloop.IOLoop.instance().stop()
+        if manager:
+            manager.cleanup()
     return 0
 
 
+def import_class(cl):
+    d = cl.rfind(".")
+    classname = cl[d + 1: len(cl)]
+    m = __import__(cl[0:d], globals(), locals(), [classname])
+    return getattr(m, classname)
+
+
 if __name__ == '__main__':
+
     tornado.options.define("port", default=8890,
         help="Run SOCKS proxy on a specific port", type=int)
     tornado.options.define("processes", default=1,
         help="Run multiple processes", type=int)
     tornado.options.define("bind", default='0.0.0.0',
         help="Bind address", type=str)
+    tornado.options.define("upstream", default="upstreams.local.LocalUpstream",
+        help="Upstream class path", type=str)
+    tornado.options.parse_config_file("config.py")
     tornado.options.parse_command_line()
+
+    upstream_cls_name = tornado.options.options['upstream'].value()
+    upstream_cls = import_class(upstream_cls_name)
+    manager_cls = getattr(upstream_cls, "MANAGER_CLS", None)
+    if manager_cls:
+        manager = manager_cls()
+    else:
+        manager = None
+
+    upstream_cls.on_load()
+    tornado.options.parse_config_file("config.py")
 
     sys.exit(main(tornado.options.options['processes'].value(),
         tornado.options.options['bind'].value(),
-        tornado.options.options['port'].value()))
+        tornado.options.options['port'].value(),
+        upstream_cls, manager))
