@@ -121,20 +121,20 @@ class XMPPUpstream(Upstream):
 
     def on_connect(self):
         self.debug("connected!")
-        self.connection_callback()
+        self.connection_callback(self)
 
     def on_error(self, errno):
         self.debug("errno: %d" % errno)
-        self.error_callback(errno)
+        self.error_callback(self, errno)
 
     def on_close(self):
         self.debug("closed")
-        self.close_callback()
+        self.close_callback(self)
 
     def on_streaming_data(self, data, finished=False):
         if len(data):
             self.debug("received %d bytes of data." % len(data))
-            self.streaming_callback(data)
+            self.streaming_callback(self, data)
 
     def do_send(self, data):
         self.manager.send_request({

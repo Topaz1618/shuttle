@@ -176,7 +176,7 @@ class SOCKSConnection(LoggingEnabledObject):
             self.on_upstream_connect, self.on_upstream_error,
             self.on_upstream_data, self.on_upstream_close, manager=manager)
 
-    def on_upstream_connect(self):
+    def on_upstream_connect(self, _dummy):
         addr_type = self.upstream.local_address_type()
         addr = self.upstream.local_address()
         self.debug("upstream connected from %s:%d" % addr)
@@ -187,17 +187,17 @@ class SOCKSConnection(LoggingEnabledObject):
         on_finish = functools.partial(self.on_socks_data, finished=True)
         self.conn.read_until_close(on_finish, self.on_socks_data)
 
-    def on_upstream_error(self, no):
+    def on_upstream_error(self, _dummy, no):
         self.debug("upstream error: " + os.strerror(no))
         if not self.sent_reply:
             self.write_reply(self.ERRNO_MAP.get(no, 0x01))
         self.conn.close()
 
-    def on_upstream_data(self, data):
+    def on_upstream_data(self, _dummy, data):
         self.conn.write(data)
         self.debug("transported %d bytes of data from upstream." % len(data))
 
-    def on_upstream_close(self):
+    def on_upstream_close(self, _dummy):
         self.conn.close()
         self.debug("upstream closed.")
         self.upstream = None

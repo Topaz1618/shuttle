@@ -21,22 +21,22 @@ class LocalUpstream(Upstream):
 
     def on_connect(self):
         self.debug("connected!")
-        self.connection_callback()
+        self.connection_callback(self)
         on_finish = functools.partial(self.on_streaming_data, finished=True)
         self.stream.read_until_close(on_finish, self.on_streaming_data)
 
     def on_close(self):
         if self.stream.error:
             self.debug("closed due to error: " + str(self.stream.error))
-            self.error_callback(self.stream.error.errno)
+            self.error_callback(self, self.stream.error.errno)
         else:
             self.debug("closed")
-            self.close_callback()
+            self.close_callback(self)
 
     def on_streaming_data(self, data, finished=False):
         if len(data):
             self.debug("received %d bytes of data." % len(data))
-            self.streaming_callback(data)
+            self.streaming_callback(self, data)
 
     def do_send(self, data):
         self.stream.write(data)
