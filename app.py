@@ -194,8 +194,12 @@ class SOCKSConnection(LoggingEnabledObject):
         self.conn.close()
 
     def on_upstream_data(self, _dummy, data):
-        self.conn.write(data)
-        self.debug("transported %d bytes of data from upstream." % len(data))
+        try:
+            self.conn.write(data)
+            self.debug("transported %d bytes of data from upstream." % len(data))
+        except IOError as e:
+            self.debug("cannot write: %s" % str(e))
+            self.upstream.close()
 
     def on_upstream_close(self, _dummy):
         self.conn.close()

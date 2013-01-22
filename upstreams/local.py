@@ -39,7 +39,11 @@ class LocalUpstream(Upstream):
             self.streaming_callback(self, data)
 
     def do_send(self, data):
-        self.stream.write(data)
+        try:
+            self.stream.write(data)
+        except IOError as e:
+            self.debug("cannot write: %s" % str(e))
+            self.stream.close()
 
     def do_close(self):
         self.stream.close()

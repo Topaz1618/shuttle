@@ -26,7 +26,6 @@ class XMPPRelaySession(object):
         self.streams = {}
 
     def on_request(self, req, msg):
-        print req
         action = req.get('action', None)
         if action in self.handlers:
             self.handlers[action](req, msg)
@@ -61,7 +60,7 @@ class XMPPRelaySession(object):
             logging.warning("request missing key: %s" % (str(req)))
             return
         stream_id = str(req.get("id"))
-        data = bytes(req.get("data"))
+        data = bytes(req.get("data").decode("base64"))
         stream = self.streams.get(stream_id, None)
         if stream:
             stream.send(data)
@@ -74,6 +73,7 @@ class XMPPRelaySession(object):
         stream = self.streams.get(stream_id, None)
         if stream:
             stream.close()
+            del self.streams[stream.stream_id]
 
     def on_upstream_connect(self, stream):
         addr_type = stream.local_address_type()
@@ -86,6 +86,7 @@ class XMPPRelaySession(object):
             })
 
     def on_upstream_error(self, stream, no):
+        self.delete_stream_id(stream.stream_id)
         self.reply({
             'event':    'error',
             'id':       stream.stream_id,
@@ -97,10 +98,11 @@ class XMPPRelaySession(object):
         self.reply({
             'event':    'data',
             'id':       stream.stream_id,
-            'data':     data,
+            'data':     data.encode("base64"),
             })
 
     def on_upstream_close(self, stream):
+        self.delete_stream_id(stream.stream_id)
         self.reply({
             'event':    'closed',
             'id':       stream.stream_id,
@@ -110,6 +112,12 @@ class XMPPRelaySession(object):
         body = json.dumps(r)
         self.manager.send_message(mto=self.peer, mbody=body)
         logging.info("sent reply: %s" % r['event'])
+
+    def delete_stream_id(self, stream_id):
+        try:
+            del self.streams[stream_id]
+        except KeyError:
+            pass
 
 
 class XMPPSessionManager(object):

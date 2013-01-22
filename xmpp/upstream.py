@@ -81,10 +81,13 @@ class XMPPManager(LoggingEnabledObject):
                     pass
                 elif reply['event'] == 'error':
                     stream.on_error(reply['errno'])
+                    self.delete_stream_id(stream_id)
                 elif reply['event'] == 'closed':
                     stream.on_close()
+                    self.delete_stream_id(stream_id)
                 elif reply['event'] == 'data':
-                    stream.on_streaming_data(bytes(reply['data']))
+                    stream.on_streaming_data(bytes(reply['data'].decode(
+                        "base64")))
                 elif reply['event'] == 'connected':
                     stream.local_addr = tuple(reply['address'])
                     stream.on_connect()
@@ -98,6 +101,12 @@ class XMPPManager(LoggingEnabledObject):
 
     def add_stream(self, stream):
         self.streams[stream.stream_id] = stream
+
+    def delete_stream_id(self, stream_id):
+        try:
+            del self.streams[stream_id]
+        except KeyError:
+            pass
 
 
 class XMPPUpstream(Upstream):
@@ -142,7 +151,7 @@ class XMPPUpstream(Upstream):
         self.manager.send_request({
             'id':           self.stream_id,
             'action':       'send',
-            'data':         data
+            'data':         data.encode("base64")
             })
 
     def do_close(self):
