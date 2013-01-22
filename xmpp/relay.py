@@ -78,7 +78,7 @@ class XMPPRelaySession(object):
     def on_upstream_connect(self, stream):
         addr_type = stream.local_address_type()
         addr = stream.local_address()
-        self.info("connected to (%s:%d)" % stream.destination)
+        logging.info("connected to (%s:%d)" % stream.destination)
         self.reply({
             'event':     'connected',
             'id':        stream.stream_id,
@@ -88,7 +88,7 @@ class XMPPRelaySession(object):
 
     def on_upstream_error(self, stream, no):
         self.delete_stream_id(stream.stream_id)
-        self.info("error in connection to (%s:%d): " % stream.destination + os.strerror(no))
+        logging.info("error in connection to (%s:%d): " % stream.destination + os.strerror(no))
         self.reply({
             'event':    'error',
             'id':       stream.stream_id,
