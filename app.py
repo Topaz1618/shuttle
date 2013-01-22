@@ -240,8 +240,11 @@ class SOCKSServer(tornado.netutil.TCPServer):
 def main(num_processes, addr, port):
     server = SOCKSServer()
     server.bind(port, address=addr, backlog=1024)
-    server.start(num_processes)
-    tornado.ioloop.IOLoop.instance().start()
+    try:
+        server.start(num_processes)
+        tornado.ioloop.IOLoop.instance().start()
+    except KeyboardInterrupt:
+        tornado.ioloop.IOLoop.instance().stop()
     return 0
 
 
